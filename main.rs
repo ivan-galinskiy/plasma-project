@@ -35,13 +35,7 @@ particles_initial = zeros(Np, 4);
 # This function must be mapped with map! to the particles array
 
 function accelerate(particle_state, dt)
-    qom = particle_state[1];
-    
-    x = particle_state[2];
-    
-    vx = particle_state[3];
-    vy = particle_state[4];
-    vz = particle_state[5];
+    q, m, x, vx, vy, vz = particle_state;
     
     a = field(world_grid, x)*qom;
     return [x vx+dt*a vy vz];
@@ -53,17 +47,11 @@ end
 # This function must be mapped with map! to the particles array
 
 function move(particle_state, dt)
-    qom = particle_state[1];
+    q, m, x, vx, vy, vz = particle_state;
     
-    x = particle_state[2];
-    
-    vx = particle_state[3];
-    vy = particle_state[4];
-    vz = particle_state[5];
-    
-    a = field(world_grid, x)*qom;
+    a = field(world_grid, x)*q/m;
     return [x+dt*vx vx vy vz];
 end
 
 # A function to calculate the charge density on the grid. This is done by PIC.
-# It uses the current particle positions from "particles"
+# It uses the current particle positions from "particles".

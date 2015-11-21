@@ -1,3 +1,4 @@
+using PyPlot;
 # A preliminary file to get started in writing the simulation
 
 # The state of the system will be kept in two arrays. One will specify
@@ -15,10 +16,10 @@
 # dt/2.
 
 Np = 1;
-Ng = 1000;
+Ng = 10000;
 dx = 0.1;
 dt = 0.1;
-L = 10;
+L = 10.0;
 
 particles = zeros(Np, 6);
 
@@ -53,8 +54,6 @@ end
 
 function move(particle_state, dt)
     q, m, x, vx, vy, vz = particle_state;
-    
-    a = field(world_grid, x)*q/m;
     
     xn = x+dt*vx;
     
@@ -108,7 +107,8 @@ function fields_calculate()
     # Then we obtain the potential for it (solving the Poisson equation)
     # TODO: fix the units and so on
     # TODO: implement the proper finite derivative
-    phik = convert(Array{Complex64, 1}, [rhok(k)/k^2 for k in 1:length(rhok)])
+    phik = Array{Complex128}(length(rhok))
+    phik[2:end] = [-rhok[k+1]/(k * (pi/L) * sinc(k/Ng))^2 for k in 1:length(rhok)-1]
     
     # And now we convert the potential back to x by IFFT
     world_grid[:,2] = real(ifft(phik))
@@ -116,3 +116,22 @@ function fields_calculate()
     return;
 end
 
+# A temporary function to test the performance of the fields' calculation
+function test_fields()
+    # Let the density be a simple linear function
+    for k in 1:length(world_grid[:,1])
+        world_grid[k, 1] = k/Ng;
+    end
+    
+    # world_grid[5000, 1] = 1.0
+    #world_grid[2000:2010, 1] = -1.0
+    
+    # Now we calculate the potential associated to it (which should be a 
+    # cubic function)
+    fields_calculate()
+    
+    # Let's see
+    plot(world_grid[10:end-10,2])
+end
+
+test_fields()

@@ -120,7 +120,7 @@ end
 function test_fields()
     # Let the density be a simple linear function
     for k in 1:length(world_grid[:,1])
-        world_grid[k, 1] = k/Ng;
+        world_grid[k, 1] = 1;
     end
     
     # world_grid[5000, 1] = 1.0

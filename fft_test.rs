@@ -4,7 +4,7 @@ L = 2.0;
 
 # The number of samples must be odd to avoid singularities from evaluating
 # 1/sinc(2*k/N)
-N = 100001;
+N = 10005;
 dx = L/N;
 
 p = float(pi)
@@ -22,6 +22,9 @@ end
 function ddifk!(arr)
     for k in 0:length(arr)-1
         arr[k+1] = -arr[k+1] * (k^2 * (2*p/L)^2 * sinc(k/N)^2)
+        if k > length(arr)-100
+            arr[k+1] = 0
+        end
     end
 end
 
@@ -42,27 +45,33 @@ function intk!(arr)
     end
 end
 
-# Double integral (integrates everything except the average term)
+# Double integral
 function iintk!(arr)
     # The DC term (it has to be accounted for in a different way, see below)
     a0 = arr[1]
     
     arr[1] = 0
     for k in 1:length(arr)-1
-        arr[k+1] = -(arr[k+1]) / (k * (2*p/L) * sinc(k/N))^2
-        #arr[k+1] = arr[k+1] / (im * k * (2*p/L) * sinc(2*k/N)) + im*a0*L/(p*k)
-        #arr[k+1] = arr[k+1] / (im * k * (2*p/L) * sinc(2*k/N)) + im*a0*L/(p*k)
+        arr[k+1] = -arr[k+1] / (k * (2*p/L) * sinc(2*k/N))^2 + (im*a0*L/(pi*k))^2
     end
 end
 
-z = convert(Array{Float64, 1}, [(x/N) for x in 1:N])
+z = convert(Array{Float64, 1}, [(2x - L)^2 for x in linspace(0, L, N)])
 zk = fft(z)
+#intk!(zk)
 iintk!(zk)
-ddifk!(zk)
+#intk!(zk)
+#difk!(zk)
+#zk = fft(real(ifft(zk)))
+#intk!(zk)
+#ddifk!(zk)
 
 # Test of a linear function decomposition
 #zk = convert(Array{Complex128, 1}, zeros(N))
 #zk[2:end] = [im*N/(p*k) for k in 1:N-1]
 
 zd = real(ifft(zk))
-plot(zd[1000:end-1000])
+#zd = real(z)
+#plot(zd[9500:end])
+plot(linspace(0, L, N-109), zd[100:end-10])
+println(zd[9990] - zd[5000])

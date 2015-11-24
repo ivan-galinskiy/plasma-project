@@ -16,7 +16,7 @@ using PyPlot;
 # dt/2.
 
 Np = 1;
-Ng = 10000;
+Ng = 10001;
 dx = 0.1;
 dt = 0.1;
 L = 10.0;
@@ -104,11 +104,16 @@ function fields_calculate()
     # First we perform a Fast Fourier transform on the density
     rhok = fft(world_grid[:,1])
     
-    # Then we obtain the potential for it (solving the Poisson equation)
-    # TODO: fix the units and so on
-    # TODO: implement the proper finite derivative
-    phik = Array{Complex128}(length(rhok))
-    phik[2:end] = [-rhok[k+1]/(k * (pi/L) * sinc(k/Ng))^2 for k in 1:length(rhok)-1]
+    # Then we obtain the potential for it (solving the Poisson equation).
+    # The 4pi factor is due to our use of the CGS system
+    phik = 4*pi*rhok
+    
+    a0 = phik[1]
+    phik[1] = 0
+    
+    for k in 1:(Ng - 1)
+        phik[k+1] = -phik[k+1] / (k * (2*pi/L) * sinc(k/Ng))^2 + (im*a0*L/(pi*k))^2
+    end
     
     # And now we convert the potential back to x by IFFT
     world_grid[:,2] = real(ifft(phik))
@@ -118,20 +123,16 @@ end
 
 # A temporary function to test the performance of the fields' calculation
 function test_fields()
-    # Let the density be a simple linear function
-    for k in 1:length(world_grid[:,1])
-        world_grid[k, 1] = 1;
-    end
     
-    # world_grid[5000, 1] = 1.0
-    #world_grid[2000:2010, 1] = -1.0
+    world_grid[4000:4010, 1] =  1.0
+    world_grid[6000:6010, 1] = -1.0
     
     # Now we calculate the potential associated to it (which should be a 
     # cubic function)
     fields_calculate()
     
     # Let's see
-    plot(world_grid[10:end-10,2])
+    plot(world_grid[1:end,2])
 end
 
 test_fields()

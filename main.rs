@@ -100,6 +100,8 @@ function rho_calculate(particle_state)
     return;
 end
 
+# For periodic boundaries, the total charge MUST be 0 in order for Maxwell
+# equations to hold.
 function fields_calculate()
     # First we perform a Fast Fourier transform on the density
     rhok = fft(world_grid[:,1])
@@ -108,11 +110,13 @@ function fields_calculate()
     # The 4pi factor is due to our use of the CGS system
     phik = 4*pi*rhok
     
+    # TODO: this should be zero, so it's probably wise to remove this.
     a0 = phik[1]
     phik[1] = 0
     
     for k in 1:(Ng - 1)
-        phik[k+1] = -phik[k+1] / (k * (2*pi/L) * sinc(k/Ng))^2 + (im*a0*L/(pi*k))^2
+        #phik[k+1] = -phik[k+1] / (k * (2*pi/L) * sinc(k/Ng))^2 + 0.5*a0*(im*L/(2*pi*k))^2
+        phik[k+1] = -phik[k+1] / (k * (2*pi/L) * sinc(k/Ng))^2
     end
     
     # And now we convert the potential back to x by IFFT
@@ -127,8 +131,7 @@ function test_fields()
     world_grid[4000:4010, 1] =  1.0
     world_grid[6000:6010, 1] = -1.0
     
-    # Now we calculate the potential associated to it (which should be a 
-    # cubic function)
+    # Now we calculate the potential associated to it.
     fields_calculate()
     
     # Let's see

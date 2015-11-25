@@ -89,9 +89,9 @@ function move(dt=1e-3)
         # Check if the new position if within bounds. If not, apply periodic
         # boundary conditions
         if xn >= L
-            xn = xn % L;
+            xn = xn - L;
         elseif xn < 0
-            xn = L + xn % L;
+            xn = L + xn;
         end
         
         particles[n,:] = [q m xn vx vy vz];
@@ -109,12 +109,16 @@ function rho_calculate()
         
         # Point of the grid that is to the left of the particle
         left_point = Int(floor(x / dx))+1;
+
+        if left_point == Ng
+            left_point = Ng-1
+        end
         
         # Consequently, the one to the right is
         right_point = left_point + 1;
         
         # The distance to the left point is
-        dL = x % dx;
+        dL = x - (left_point-1) * dx;
         
         # And to the right one
         dR = dx - dL;
@@ -144,8 +148,8 @@ function potential_calculate()
     phik = -4*pi*rhok
     
     # This should be zero, so it was probably wise to remove this.
-    a0 = phik[1]
-    phik[1] = 0
+    #a0 = phik[1]
+    #phik[1] = 0
     
     for k in 1:(Ng-1)
         #phik[k+1] = -phik[k+1] / (k * (2*pi/L) * sinc(k/Ng))^2 + 0.5*a0*(im*L/(2*pi*k))^2
@@ -175,46 +179,48 @@ function test_fields()
 end
 
 function test_rho()
-    for n in 1:Np
-        particles[n,:] = [1 1 0.9999*n*L/Np 0 0 0]
-    end
-    
+    #for n in 1:Np
+    #    particles[n,:] = [1 1 0.9999*n*L/Np 0 0 0]
+    #end
+    particles[1,:] = [1 1 L/2 0 0 0]
+    particles[2,:] = [-1 1 L/2+1e-6 0 0 0]
     rho_calculate()
-    plot(world_grid[1:end-10,1])
+    plot(world_grid[4990:5010,1])
 end
 
 function test_loop()
-    particles[1,:] = [1 1 L/4 0 0 0];
-    particles[2,:] = [-1 1 3L/4 0 0 0];
+    particles[1,:] = [-1 1 L/2 0 0 0];
+    particles[2,:] = [1 1 L/2-1e-12 0 0 0];
     
     rho_calculate()
     potential_calculate()
     field_calculate()
     
-    #xr = linspace(0, L, 10000)
+    xr = linspace(0, L, 10000)
     #plot(xr, [field_interpolate(x) for x in xr])
+    plot(world_grid[:,1])
     
-    #accelerate(dt0)
-    
-    
-    Nt = 1000
-    pos1 = zeros(Nt)
-    pos2 = zeros(Nt)
-    
-    for t in 1:Nt
-        rho_calculate()
-        potential_calculate()
-        field_calculate()
-        accelerate(dt0)
-        move(dt0)
-        pos1[t] = particles[1,3]
-        pos2[t] = particles[2,3]
-    end
-    
-    plot(pos1[1:end])
-    plot(pos2[1:end])
+%;#    accelerate(-dt0/2)
+%;#    
+%;#    Nt = 1000
+%;#    pos1 = zeros(Nt)
+%;#    pos2 = zeros(Nt)
+%;#    
+%;#    for t in 1:Nt
+%;#        rho_calculate()
+%;#        potential_calculate()
+%;#        field_calculate()
+%;#        accelerate(dt0)
+%;#        move(dt0)
+%;#        pos1[t] = particles[1,3]
+%;#        pos2[t] = particles[2,3]
+%;#    end
+%;#    
+%;#    plot(pos1[1:end])
+%;#    plot(pos2[1:end])
     
 end
 
 #test_fields()
-test_loop()
+#test_loop()
+test_rho()

@@ -15,13 +15,13 @@ using PyPlot;
 # velocities ARE NOT SIMULTANEOUS. Specifically, the velocities "lag behind" by
 # dt/2.
 
-Np = 2;
-Ng = 10001; # Number of grid points
+Np = 1;
+Ng = 128; # Number of grid points
 
-L = 10.0;
+L = 1.0;
 
 dx = L/(Ng-1);
-dt0 = 1e-3;
+dt0 = 1e-4;
 
 particles = zeros(Np, 6);
 
@@ -69,7 +69,7 @@ function field_interpolate(x)
         right_point = 2
     end
     
-    dL = x % dx
+    dL = x - dx*(left_point - 1)
     
     return world_grid[left_point, 3] + (world_grid[right_point, 3] - world_grid[left_point, 3])*dL/dx
 end
@@ -104,6 +104,7 @@ end
 # It modifies the density values in "world_grid"
 
 function rho_calculate()
+    world_grid[:,1] = 0
     for n in 1:Np
         q, m, x, vx, vy, vz = particles[n,:];
         
@@ -149,7 +150,7 @@ function potential_calculate()
     
     # This should be zero, so it was probably wise to remove this.
     #a0 = phik[1]
-    #phik[1] = 0
+    phik[1] = 0
     
     for k in 1:(Ng-1)
         #phik[k+1] = -phik[k+1] / (k * (2*pi/L) * sinc(k/Ng))^2 + 0.5*a0*(im*L/(2*pi*k))^2
@@ -185,24 +186,38 @@ function test_rho()
     particles[1,:] = [1 1 L/2 0 0 0]
     particles[2,:] = [-1 1 L/2+1e-6 0 0 0]
     rho_calculate()
-    plot(world_grid[4990:5010,1])
+    plot(world_grid[:,1])
 end
 
 function test_loop()
-    particles[1,:] = [-1 1 L/2 0 0 0];
-    particles[2,:] = [1 1 L/2-1e-12 0 0 0];
     
-    rho_calculate()
-    potential_calculate()
-    field_calculate()
-    
+    err = zeros(1000)
+    for k in 1:1000
+        px = k*L/1000
+        particles[1,:] = [1 1 px 0.1 0 0];
+        #particles[2,:] = [1 1 L/2+1 0 0 0];
+        
+        rho_calculate()
+        # Add a neutralizing background
+        #temp = fft(world_grid[:,1])
+        #temp[1,1] = 0
+        #world_grid[:,1] = real(ifft(temp))
+        
+        #world_grid[:, 1] -= 2/L
+        potential_calculate()
+        field_calculate()
+        err[k] = field_interpolate(px)
+    end
+    plot(err[:])
+    yscale("log")
     xr = linspace(0, L, 10000)
     #plot(xr, [field_interpolate(x) for x in xr])
-    plot(world_grid[:,1])
+    #plot(world_grid[:,1])
+    #plot(world_grid[20:40,3], "o")
     
 %;#    accelerate(-dt0/2)
 %;#    
-%;#    Nt = 1000
+%;#    Nt = 200
 %;#    pos1 = zeros(Nt)
 %;#    pos2 = zeros(Nt)
 %;#    
@@ -210,17 +225,20 @@ function test_loop()
 %;#        rho_calculate()
 %;#        potential_calculate()
 %;#        field_calculate()
+%;#        
+%;#        
+%;#        pos1[t] = field_interpolate(particles[1,3])
+%;#        
 %;#        accelerate(dt0)
-%;#        move(dt0)
-%;#        pos1[t] = particles[1,3]
-%;#        pos2[t] = particles[2,3]
+%;#        move(dt0) #particles[1,3]
+%;#        #pos2[t] = particles[2,3]
 %;#    end
 %;#    
 %;#    plot(pos1[1:end])
-%;#    plot(pos2[1:end])
+%;#    #plot(pos2[1:end])
     
 end
 
 #test_fields()
-#test_loop()
-test_rho()
+test_loop()
+#test_rho()

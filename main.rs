@@ -15,13 +15,13 @@ using PyPlot;
 # velocities ARE NOT SIMULTANEOUS. Specifically, the velocities "lag behind" by
 # dt/2.
 
-Np = 1;
-Ng = 128; # Number of grid points
+Np = 2;
+Ng = Int(2^7); # Number of grid points
 
 L = 1.0;
 
 dx = L/(Ng-1);
-dt0 = 1e-4;
+dt0 = 1e-3;
 
 particles = zeros(Np, 6);
 
@@ -29,7 +29,7 @@ particles = zeros(Np, 6);
 # specified at the grid points.
 # The grid has Ng points (for Ng-1 intervals)
 
-world_grid = zeros(Ng, 3);
+world_grid = zeros(Ng+1, 3);
 
 # The initial conditions are specified as {x_i(0)}, {v_i(0)}. Note that this is
 # inconsistent with the leapfrog scheme. Therefore, these will later be
@@ -47,18 +47,18 @@ function accelerate(dt=1e-3)
         q, m, x, vx, vy, vz = particles[n,:];
     
         a = field_interpolate(x)*q/m ;
-        #println(a)
         particles[n,:] = [q m x vx+dt*a vy vz];
     end
 end
 
 function field_calculate()
-    world_grid[1, 3] = (world_grid[end-1, 2] - world_grid[2, 2])/(2*dx)
-    world_grid[end, 3] = world_grid[1, 3]
+    #world_grid[1, 3] = (world_grid[end-1, 2] - world_grid[2, 2])/(2*dx)
     
-    for n in 2:Ng-1
+    for n in 2:Ng
         world_grid[n, 3] = (world_grid[n-1, 2] - world_grid[n+1, 2])/(2*dx)
     end
+    world_grid[1, 3] = (world_grid[Ng, 2] - world_grid[2, 2])/(2*dx)
+    world_grid[Ng+1, 3] = world_grid[1, 3]
 end
 
 function field_interpolate(x)
@@ -88,9 +88,9 @@ function move(dt=1e-3)
         
         # Check if the new position if within bounds. If not, apply periodic
         # boundary conditions
-        if xn >= L
+        if xn > L
             xn = xn - L;
-        elseif xn < 0
+        elseif xn <= 0
             xn = L + xn;
         end
         
@@ -132,7 +132,9 @@ function rho_calculate()
     end
     
     # And we apply the periodic boundary conditions
-    world_grid[1, 1] += world_grid[end, 1]
+    ld = world_grid[1, 1]
+    rd = world_grid[end, 1]
+    world_grid[1, 1] = ld + rd
     world_grid[end, 1] = world_grid[1, 1]
     
     return;
@@ -142,7 +144,12 @@ end
 # equations to hold.
 function potential_calculate()
     # First we perform a Fast Fourier transform on the density
-    rhok = fft(world_grid[:,1])
+    # Note that we omit the last point because it's periodic
+    
+    world_grid[1, 1] += world_grid[Ng+1, 1]
+    world_grid[Ng+1, 1] = world_grid[1, 1]
+    
+    rhok = fft(world_grid[1:Ng,1])
     
     # Then we obtain the potential for it (solving the Poisson equation).
     # The 4pi factor is due to our use of the CGS system
@@ -152,13 +159,21 @@ function potential_calculate()
     #a0 = phik[1]
     phik[1] = 0
     
-    for k in 1:(Ng-1)
-        #phik[k+1] = -phik[k+1] / (k * (2*pi/L) * sinc(k/Ng))^2 + 0.5*a0*(im*L/(2*pi*k))^2
-        phik[k+1] = -phik[k+1] / (k * (2*pi/L) * sinc(k/Ng))^2
+    function K(k)
+        return 1/(k * (2*pi/L) * sinc(k/Ng))^2
     end
     
+    for k in 2:Int(Ng/2)
+        phik[k] = -phik[k] * K(k-1)
+        phik[Ng + 2 - k] = -phik[Ng + 2 - k] * K(k-1)
+    end
+    phik[Ng/2+1] = -phik[Ng/2+1] * K(Ng/2)
+    
     # And now we convert the potential back to x by IFFT
-    world_grid[:,2] = real(ifft(phik))
+    world_grid[1:Ng,2] = real(ifft(phik))
+    world_grid[Ng+1,2] = world_grid[1,2]
+    
+    #world_grid[end, 2] = world_grid[1, 2]
     
     return;
 end
@@ -191,51 +206,56 @@ end
 
 function test_loop()
     
-    err = zeros(1000)
-    for k in 1:1000
-        px = k*L/1000
-        particles[1,:] = [1 1 px 0.1 0 0];
-        #particles[2,:] = [1 1 L/2+1 0 0 0];
-        
-        rho_calculate()
-        # Add a neutralizing background
-        #temp = fft(world_grid[:,1])
-        #temp[1,1] = 0
-        #world_grid[:,1] = real(ifft(temp))
-        
-        #world_grid[:, 1] -= 2/L
-        potential_calculate()
-        field_calculate()
-        err[k] = field_interpolate(px)
-    end
-    plot(err[:])
-    yscale("log")
+%;#    err = zeros(1000)
+%;#    for k in 1:1000
+%;#        px = k*L/1000
+%;#        particles[1,:] = [1 1 px 0.1 0 0];
+%;#        #particles[2,:] = [1 1 L/2+1 0 0 0];
+%;#        
+%;#        rho_calculate()
+%;#        
+%;#        #world_grid[:, 1] -= 2/L
+%;#        potential_calculate()
+%;#        field_calculate()
+%;#        err[k] = field_interpolate(px)
+%;#    end
+    #plot(err[1:end])
+    particles[1,:] = [1 0.1 L/5 1 0 0];
+    particles[2,:] = [-1 0.1 L/4 1 0 0];
+    
+    rho_calculate()
+    potential_calculate()
+    field_calculate()
+    
+    #plot(world_grid[1:Ng,3])
+    #println(err[end])
+    #yscale("log")
     xr = linspace(0, L, 10000)
     #plot(xr, [field_interpolate(x) for x in xr])
     #plot(world_grid[:,1])
-    #plot(world_grid[20:40,3], "o")
+    #plot(world_grid[:,2])
     
-%;#    accelerate(-dt0/2)
-%;#    
-%;#    Nt = 200
-%;#    pos1 = zeros(Nt)
-%;#    pos2 = zeros(Nt)
-%;#    
-%;#    for t in 1:Nt
-%;#        rho_calculate()
-%;#        potential_calculate()
-%;#        field_calculate()
-%;#        
-%;#        
-%;#        pos1[t] = field_interpolate(particles[1,3])
-%;#        
-%;#        accelerate(dt0)
-%;#        move(dt0) #particles[1,3]
-%;#        #pos2[t] = particles[2,3]
-%;#    end
-%;#    
-%;#    plot(pos1[1:end])
-%;#    #plot(pos2[1:end])
+    accelerate(-dt0/2)
+    
+    Nt = 1000
+    pos1 = zeros(Nt)
+    pos2 = zeros(Nt)
+    
+    for t in 1:Nt
+        rho_calculate()
+        potential_calculate()
+        field_calculate()
+        
+        pos1[t] = field_interpolate(particles[1,3])
+        
+        accelerate(dt0)
+        move(dt0) 
+        pos1[t] = particles[1,3]
+        pos2[t] = particles[2,3]
+    end
+    
+    plot(pos1[1:end])
+    plot(pos2[1:end])
     
 end
 

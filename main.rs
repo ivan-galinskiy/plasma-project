@@ -15,19 +15,20 @@ using PyPlot;
 # velocities ARE NOT SIMULTANEOUS. Specifically, the velocities "lag behind" by
 # dt/2.
 
-Np = 2;
-Ng = Int(2^7); # Number of grid points
+Np = 2; # Number of particles
+Ng = Int(2^10); # Number of grid points (power of 2 for efficiency)
 
 L = 1.0;
 
-dx = L/(Ng-1);
+dx = L/(Ng-1); # Size of each grid interval
 dt0 = 1e-3;
 
 particles = zeros(Np, 6);
 
 # The other array world_grid will contain the densities and electric fields 
 # specified at the grid points.
-# The grid has Ng points (for Ng-1 intervals)
+# The grid has Ng points (for Ng-1 intervals), plus an additional point to
+# make periodic boundaries work
 
 world_grid = zeros(Ng+1, 3);
 
@@ -42,6 +43,12 @@ particles_initial = zeros(Np, 6);
 
 # This function must be mapped with map! to the particles array
 
+function null_world()
+    particles = zeros(Np, 6);
+    world_grid = zeros(Ng+1, 3);
+    particles_initial = zeros(Np, 6);
+end
+
 function accelerate(dt=1e-3)
     for n in 1:Np
         q, m, x, vx, vy, vz = particles[n,:];
@@ -52,8 +59,6 @@ function accelerate(dt=1e-3)
 end
 
 function field_calculate()
-    #world_grid[1, 3] = (world_grid[end-1, 2] - world_grid[2, 2])/(2*dx)
-    
     for n in 2:Ng
         world_grid[n, 3] = (world_grid[n-1, 2] - world_grid[n+1, 2])/(2*dx)
     end
@@ -65,9 +70,6 @@ function field_interpolate(x)
     N = x/dx + 1
     left_point = Int(floor(N))
     right_point = left_point + 1
-    if left_point == Ng
-        right_point = 2
-    end
     
     dL = x - dx*(left_point - 1)
     
@@ -171,55 +173,44 @@ function potential_calculate()
     
     # And now we convert the potential back to x by IFFT
     world_grid[1:Ng,2] = real(ifft(phik))
-    world_grid[Ng+1,2] = world_grid[1,2]
     
-    #world_grid[end, 2] = world_grid[1, 2]
+    # And apply boundary conditions
+    world_grid[Ng+1,2] = world_grid[1,2]
     
     return;
 end
 
 # A temporary function to test the performance of the fields' calculation
 function test_fields()
-    world_grid[Int(floor(Ng/3)):Int(floor(Ng/3))+1, 1] =  1.0
-    world_grid[Int(floor(2*Ng/3)):Int(floor(2*Ng/3))+1, 1] = -1.0
+    world_grid[Int(floor(Ng/5)):Int(floor(Ng/5))+1, 1] =  1.0
+    world_grid[Int(floor(Ng/4)):Int(floor(Ng/4))+1, 1] = -1.0
     
     # Now we calculate the potential associated to it.
     potential_calculate()
     
     # Let's see
-    #plot(world_grid[1:end,2])
+    figure()
+    plot(linspace(0, L, Ng), world_grid[1:Ng,2])
+    title("Potential of two opposite delta charges")
+    
+    figure()
     field_calculate()
-    #plot(world_grid[10:end-10,3])
-    xr = linspace(0, L, 10000)
-    plot(xr, [field_interpolate(x) for x in xr])
+    plot(linspace(0, L, Ng), world_grid[1:Ng,3])
+    title("Field of two opposite delta charges")
+    #plot(xr, [field_interpolate(x) for x in xr])
 end
 
 function test_rho()
-    #for n in 1:Np
-    #    particles[n,:] = [1 1 0.9999*n*L/Np 0 0 0]
-    #end
-    particles[1,:] = [1 1 L/2 0 0 0]
-    particles[2,:] = [-1 1 L/2+1e-6 0 0 0]
+    particles[1,:] = [1 1 L/5 0 0 0]
+    particles[2,:] = [-1 1 L/4 0 0 0]
     rho_calculate()
-    plot(world_grid[:,1])
+    
+    figure()
+    plot(linspace(0, L, Ng), world_grid[:,1])
+    title("Density of two opposite point charges")
 end
 
 function test_loop()
-    
-%;#    err = zeros(1000)
-%;#    for k in 1:1000
-%;#        px = k*L/1000
-%;#        particles[1,:] = [1 1 px 0.1 0 0];
-%;#        #particles[2,:] = [1 1 L/2+1 0 0 0];
-%;#        
-%;#        rho_calculate()
-%;#        
-%;#        #world_grid[:, 1] -= 2/L
-%;#        potential_calculate()
-%;#        field_calculate()
-%;#        err[k] = field_interpolate(px)
-%;#    end
-    #plot(err[1:end])
     particles[1,:] = [1 0.1 L/5 1 0 0];
     particles[2,:] = [-1 0.1 L/4 1 0 0];
     
@@ -235,6 +226,7 @@ function test_loop()
     #plot(world_grid[:,1])
     #plot(world_grid[:,2])
     
+    # Advance the velocities half a step into the past for leapfrog
     accelerate(-dt0/2)
     
     Nt = 1000
@@ -246,19 +238,28 @@ function test_loop()
         potential_calculate()
         field_calculate()
         
-        pos1[t] = field_interpolate(particles[1,3])
-        
         accelerate(dt0)
         move(dt0) 
         pos1[t] = particles[1,3]
         pos2[t] = particles[2,3]
     end
     
-    plot(pos1[1:end])
-    plot(pos2[1:end])
+    #plot(pos1[1:end])
+    #plot(pos2[1:end])
     
 end
 
-#test_fields()
+# Force compilation
+null_world()
 test_loop()
-#test_rho()
+
+null_world()
+
+# And now, profiling
+Profile.init(delay=0.01)
+Profile.clear()
+
+println("Real run")
+@profile test_loop()
+
+r = Profile.print()

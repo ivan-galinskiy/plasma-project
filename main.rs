@@ -15,10 +15,10 @@ using PyPlot;
 # velocities ARE NOT SIMULTANEOUS. Specifically, the velocities "lag behind" by
 # dt/2.
 
-Np = 2; # Number of particles
-Ng = Int(2^10); # Number of grid points (power of 2 for efficiency)
+Np = 2; # Number of particles (recommended to be even for neutrality)
+Ng = Int(2^7); # Number of grid points (power of 2 for efficiency)
 
-L = 1.0;
+L = 1.0; # Length of the simulation cell (in cm)
 
 dx = L/(Ng-1); # Size of each grid interval
 dt0 = 1e-3;
@@ -211,8 +211,8 @@ function test_rho()
 end
 
 function test_loop()
-    particles[1,:] = [1 0.1 L/5 1 0 0];
-    particles[2,:] = [-1 0.1 L/4 1 0 0];
+    particles[1,:] = [1 0.1 L/2-L/10 0 0 0];
+    particles[2,:] = [-1 0.1 L/4+L/10 0 0 0];
     
     rho_calculate()
     potential_calculate()
@@ -244,22 +244,21 @@ function test_loop()
         pos2[t] = particles[2,3]
     end
     
-    #plot(pos1[1:end])
-    #plot(pos2[1:end])
+    pos_dif = pos1 - pos2
+    plot(pos_dif)
     
+    # Calculate the second derivative in time to obtain the force
+    pos_der = zeros(length(pos_dif))
+    for k in 2:length(pos_dif)-1
+        pos_der[k] = (pos_dif[k-1] + pos_dif[k+1] - 2*pos_dif[k])/dt0^2
+    end
+    pos_der[1] = pos_der[2]
+    pos_der[end] = pos_der[end-1]
+    
+    figure()
+    plot(pos_der)
 end
 
 # Force compilation
 null_world()
 test_loop()
-
-null_world()
-
-# And now, profiling
-Profile.init(delay=0.01)
-Profile.clear()
-
-println("Real run")
-@profile test_loop()
-
-r = Profile.print()

@@ -15,16 +15,42 @@ using PyPlot;
 # velocities ARE NOT SIMULTANEOUS. Specifically, the velocities "lag behind" by
 # dt/2.
 
-Np = Int(floor((2^6-1)*70)); # Number of particles
+Np = Int(floor((2^6-1)*6)); # Number of particles
+wp = 0 # Desired plasma frequency to be calculated later
+L = 1.0 # Length of the system
+qm = -1 # Charge-to-mass ratio
+
+
 Ng = Int(2^6); # Number of grid points (power of 2 for efficiency)
-Nt = Int(500); # Number of time points
+Nt = Int(5000); # Number of time steps
 
-L = 100.0; # Length of the simulation cell (in cm)
+dt0 = 0 # To be determined later
+dx = float(L/(Ng-1));
+
+# Populate the simulation space uniformly with two streams of same species with
+# opposing velocities (+- v). Np assumed to be odd.
+# qm is the charge-to-mass ratio, wp is the desired plasma frequency,
+# L is the system length (in cm) and Np is the desired number of particles
+function two_streams_populate(v)
+    # Calculate the physical parameters
+    n = Np/L
+    q = wp^2/(4*pi*qm*n)
+    m = q/qm
+    
+    # Calculate the stable time step
+    dt0 = 0.2/wp
+    
+    for k in 1:Np
+        particles[k,:] = [q m (L * (k-1)/Np ) v*(-1)^k 0 0];
+    end
+end
+
+#L = 100.0; # Length of the simulation cell (in cm)
 #L = 0.07*4*pi*Np; # Length of the simulation cell (in cm)
-T = 100.0; # Time length of the simulation
+#T = 100.0; # Time length of the simulation
 
-dx = float(L/(Ng-1)); # Size of each grid interval
-dt0 = float(T/Nt);
+ # Size of each grid interval
+#dt0 = float(T/Nt);
 
 particles = zeros(Np, 6);
 
@@ -183,14 +209,6 @@ function potential_calculate()
     return;
 end
 
-# Populate the simulation space uniformly with two streams of same species with
-# opposing velocities (+- v). Np assumed to be odd.
-function two_streams_populate(q, m, v)
-    for n in 1:Np
-        particles[n,:] = [q m (L * (n-1)/Np ) v*(-1)^n 0 0];
-    end
-end
-
 # A temporary function to test the performance of the fields' calculation
 function test_fields()
     world_grid[Int(floor(Ng/5)):Int(floor(Ng/5))+1, 1] =  1.0
@@ -292,7 +310,7 @@ phase_his = zeros(Nt, 2*Np)
 
 function two_streams_test()
     null_world()
-    two_streams_populate(1, 0.1, 1)
+    two_streams_populate(1)
     
     # Now we induce a perturbation in the particles' velocities
     for n in 1:Np

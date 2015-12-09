@@ -15,13 +15,16 @@ using PyPlot;
 # velocities ARE NOT SIMULTANEOUS. Specifically, the velocities "lag behind" by
 # dt/2.
 
-Np = (2^6-1)*2; # Number of particles
+Np = Int(floor((2^6-1)*70)); # Number of particles
 Ng = Int(2^6); # Number of grid points (power of 2 for efficiency)
+Nt = Int(500); # Number of time points
 
-L = 1.0; # Length of the simulation cell (in cm)
+L = 100.0; # Length of the simulation cell (in cm)
+#L = 0.07*4*pi*Np; # Length of the simulation cell (in cm)
+T = 100.0; # Time length of the simulation
 
-dx = L/(Ng-1); # Size of each grid interval
-dt0 = 1e-3;
+dx = float(L/(Ng-1)); # Size of each grid interval
+dt0 = float(T/Nt);
 
 particles = zeros(Np, 6);
 
@@ -86,17 +89,17 @@ function move(dt=1e-3)
     for n in 1:Np
         q, m, x, vx, vy, vz = particles[n,:];
         
-        xn = x+dt*vx;
+        x += dt*vx;
         
-        # Check if the new position if within bounds. If not, apply periodic
+        # Check if the new position is within bounds. If not, apply periodic
         # boundary conditions
-        if xn > L
-            xn = xn - L;
-        elseif xn <= 0
-            xn = L + xn;
+        if x >= L
+            x -= L;
+        elseif x < 0
+            x += L;
         end
         
-        particles[n,:] = [q m xn vx vy vz];
+        particles[n,:] = [q m x vx vy vz];
     end
 end
 
@@ -180,10 +183,11 @@ function potential_calculate()
     return;
 end
 
-# Populate the simulation space uniformly
-function even_populate(q, m)
+# Populate the simulation space uniformly with two streams of same species with
+# opposing velocities (+- v). Np assumed to be odd.
+function two_streams_populate(q, m, v)
     for n in 1:Np
-        particles[n,:] = [q m (L * (n-1)/Np ) 0 0 0];
+        particles[n,:] = [q m (L * (n-1)/Np ) v*(-1)^n 0 0];
     end
 end
 
@@ -217,10 +221,10 @@ function test_rho()
     title("Density of two opposite point charges")
     
     null_world()
-    even_populate(1,1)
+    two_streams_populate(1, 1, 0)
     
     rho_calculate()
-    #potential_calculate()
+    potential_calculate()
     
     figure()
     plot(linspace(0, L, Ng), world_grid[1:Ng,1], "o")
@@ -230,6 +234,11 @@ end
 function test_loop()
     particles[1,:] = [1 0.1 L/2-L/10 0 0 0];
     particles[2,:] = [-1 0.1 L/4+L/10 0 0 0];
+    
+    # All the other particles are not important
+    for k in 3:Np
+        particles[k,:] = [0 1 0 0 0 0]
+    end
     
     rho_calculate()
     potential_calculate()
@@ -246,7 +255,6 @@ function test_loop()
     # Advance the velocities half a step into the past for leapfrog
     accelerate(-dt0/2)
     
-    Nt = 1000
     pos1 = zeros(Nt)
     pos2 = zeros(Nt)
     
@@ -276,6 +284,48 @@ function test_loop()
     plot(pos_der)
 end
 
+# Density history
+dens_his = zeros(Nt, Ng)
+
+# Phase space history
+phase_his = zeros(Nt, 2*Np)
+
+function two_streams_test()
+    null_world()
+    two_streams_populate(1, 0.1, 1)
+    
+    # Now we induce a perturbation in the particles' velocities
+    for n in 1:Np
+        q, m, x, vx, vy, vz = particles[n,:];
+        vxn = 0;
+        if vx > 0
+            vxn = vx + 0.2*sin(2*pi*x/L)
+        else
+            vxn = vx - 0.2*sin(2*pi*x/L)
+        end
+        
+        particles[n,:] = [q, m, x, vxn, vy, vz]
+    end
+    
+    # Advance the velocities half a step into the past for leapfrog
+    rho_calculate()
+    potential_calculate()
+    field_calculate()
+    accelerate(-dt0/2)
+    
+    for t in 1:Nt
+        rho_calculate()
+        potential_calculate()
+        field_calculate()
+        
+        dens_his[t,:] = world_grid[1:Ng, 1]
+        phase_his[t, 1:Np] = particles[:,3]
+        phase_his[t, Np+1:2*Np] = particles[:,4]
+        
+        accelerate(dt0)
+        move(dt0)
+    end
+end
+
 # Force compilation
-null_world()
-test_rho()
+two_streams_test()

@@ -15,8 +15,8 @@ using PyPlot;
 # velocities ARE NOT SIMULTANEOUS. Specifically, the velocities "lag behind" by
 # dt/2.
 
-Np = 2; # Number of particles (recommended to be even for neutrality)
-Ng = Int(2^7); # Number of grid points (power of 2 for efficiency)
+Np = (2^6-1)*2; # Number of particles
+Ng = Int(2^6); # Number of grid points (power of 2 for efficiency)
 
 L = 1.0; # Length of the simulation cell (in cm)
 
@@ -110,12 +110,12 @@ function rho_calculate()
     for n in 1:Np
         q, m, x, vx, vy, vz = particles[n,:];
         
+        if x >= L
+            x -= L;
+        end
+        
         # Point of the grid that is to the left of the particle
         left_point = Int(floor(x / dx))+1;
-
-        if left_point == Ng
-            left_point = Ng-1
-        end
         
         # Consequently, the one to the right is
         right_point = left_point + 1;
@@ -135,9 +135,9 @@ function rho_calculate()
     
     # And we apply the periodic boundary conditions
     ld = world_grid[1, 1]
-    rd = world_grid[end, 1]
+    rd = world_grid[Ng, 1]
     world_grid[1, 1] = ld + rd
-    world_grid[end, 1] = world_grid[1, 1]
+    world_grid[Ng, 1] = world_grid[1, 1]
     
     return;
 end
@@ -180,6 +180,13 @@ function potential_calculate()
     return;
 end
 
+# Populate the simulation space uniformly
+function even_populate(q, m)
+    for n in 1:Np
+        particles[n,:] = [q m (L * (n-1)/Np ) 0 0 0];
+    end
+end
+
 # A temporary function to test the performance of the fields' calculation
 function test_fields()
     world_grid[Int(floor(Ng/5)):Int(floor(Ng/5))+1, 1] =  1.0
@@ -206,8 +213,18 @@ function test_rho()
     rho_calculate()
     
     figure()
-    plot(linspace(0, L, Ng), world_grid[:,1])
+    plot(linspace(0, L, Ng), world_grid[1:Ng,1])
     title("Density of two opposite point charges")
+    
+    null_world()
+    even_populate(1,1)
+    
+    rho_calculate()
+    #potential_calculate()
+    
+    figure()
+    plot(linspace(0, L, Ng), world_grid[1:Ng,1], "o")
+    title("Density of a uniform charge distribution")
 end
 
 function test_loop()
@@ -261,4 +278,4 @@ end
 
 # Force compilation
 null_world()
-test_loop()
+test_rho()

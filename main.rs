@@ -15,14 +15,14 @@ using PyPlot;
 # velocities ARE NOT SIMULTANEOUS. Specifically, the velocities "lag behind" by
 # dt/2.
 
-Np = Int(floor((2^6-1)*6)); # Number of particles
-wp = 0 # Desired plasma frequency to be calculated later
+Np = Int(floor((2^6-1)*60)); # Number of particles
+wp = 1 # Desired plasma frequency
 L = 1.0 # Length of the system
-qm = -1 # Charge-to-mass ratio
+qm = -100 # Charge-to-mass ratio
 
 
 Ng = Int(2^6); # Number of grid points (power of 2 for efficiency)
-Nt = Int(5000); # Number of time steps
+Nt = Int(500); # Number of time steps
 
 dt0 = 0 # To be determined later
 dx = float(L/(Ng-1));
@@ -38,7 +38,7 @@ function two_streams_populate(v)
     m = q/qm
     
     # Calculate the stable time step
-    dt0 = 0.2/wp
+    global dt0 = 0.05/wp
     
     for k in 1:Np
         particles[k,:] = [q m (L * (k-1)/Np ) v*(-1)^k 0 0];
@@ -310,16 +310,16 @@ phase_his = zeros(Nt, 2*Np)
 
 function two_streams_test()
     null_world()
-    two_streams_populate(1)
+    two_streams_populate(0.1)
     
     # Now we induce a perturbation in the particles' velocities
     for n in 1:Np
         q, m, x, vx, vy, vz = particles[n,:];
         vxn = 0;
         if vx > 0
-            vxn = vx + 0.2*sin(2*pi*x/L)
+            vxn = vx + 0.02*sin(2*pi*x/L)
         else
-            vxn = vx - 0.2*sin(2*pi*x/L)
+            vxn = vx - 0.02*sin(2*pi*x/L)
         end
         
         particles[n,:] = [q, m, x, vxn, vy, vz]
